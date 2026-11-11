@@ -109,7 +109,7 @@ class PurchaseOrderLine(models.Model):
         missing = self._mayan_missing_justification()
         if missing:
             raise ValidationError(_(
-                "Completa la justificación de los productos fuera de ±20% o sin costo de referencia "
+                "Completa la justificación de los productos fuera de ±20%% o sin costo de referencia "
                 "antes de agregar productos, guardar cambios o confirmar: %s.",
                 ", ".join(missing.product_id.mapped("display_name")),
             ))

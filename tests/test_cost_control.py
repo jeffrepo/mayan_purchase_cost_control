@@ -10,6 +10,9 @@ class TestPurchaseCostControl(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.env.user.sudo().write({"groups_id": [Command.link(
+            cls.env.ref("purchase_request_app.group_purchase_request_user").id,
+        )]})
         cls.company = cls.env.company
         cls.company.write({"po_double_validation": "one_step", "po_lock": "edit"})
         cls.category = cls.env["product.category"].create({
@@ -56,7 +59,8 @@ class TestPurchaseCostControl(AccountTestInvoicingCommon):
 
     def _tax(self, included=False):
         return self.env["account.tax"].create({
-            "name": "IVA QA", "amount": 12, "amount_type": "percent", "type_tax_use": "purchase",
+            "name": "IVA incluido QA" if included else "IVA excluido QA",
+            "amount": 12, "amount_type": "percent", "type_tax_use": "purchase",
             "company_id": self.company.id,
             "price_include_override": "tax_included" if included else "tax_excluded",
         })
