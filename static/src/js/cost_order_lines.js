@@ -19,9 +19,9 @@ export class MayanCostOrderLines extends ProductLabelSectionAndNoteOne2Many {
         const proms = [];
         this.list.model.bus.trigger("NEED_LOCAL_CHANGES", { proms });
         await Promise.all(proms);
-        if (this.list.editedRecord) {
-            await this.list.editedRecord._updatePromise;
-        }
+        // A blur may have already queued an onchange before NEED_LOCAL_CHANGES.
+        // Wait for the relational model to apply that result as well.
+        await this.list.model.mutex.getUnlockedDef();
         const pending = this.list.records.find(({ data }) =>
             !data.display_type && data.mayan_requires_justification &&
             !(data.mayan_cost_justification || "").trim()
