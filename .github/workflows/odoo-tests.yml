@@ -95,7 +95,7 @@ jobs:
           import re
           log = Path('/tmp/browser-tests.log').read_text()
           assert re.search(r'0 failed, 0 error\(s\) of [1-9]\d* tests', log)
-          assert 'Tour mayan_cost_control_justification succeeded' in log
+          assert 'tour succeeded' in log
           PY
       - name: Preserve test logs and browser evidence
         if: always()

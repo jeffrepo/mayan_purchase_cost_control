@@ -259,7 +259,7 @@ class TestPurchaseCostControl(AccountTestInvoicingCommon):
         commands.append(Command.create(self._line(price_unit=7)))
         with self.assertRaises(ValidationError), self.cr.savepoint():
             self._order(order_line=commands)
-        order = self._order(order_line=[Command.create({"display_type": "line_section", "name": "Alimentos"}),
+        order = self._order(order_line=[Command.create({"display_type": "line_section", "name": "Alimentos", "product_qty": 0}),
                                         Command.create(self._line())])
         order.button_confirm()
         self.assertEqual(order.state, "purchase")
@@ -298,6 +298,21 @@ class TestPurchaseCostControl(AccountTestInvoicingCommon):
         self.product.standard_price = 0
         order.button_cancel()
         self.assertEqual(order.state, "cancel")
+
+    def test_reopened_draft_uses_current_cost_and_needs_new_reason(self):
+        order = self._order()
+        order.button_confirm()
+        order.button_cancel()
+        self.product.standard_price = 3
+        order.button_draft()
+        self.assertEqual(order.state, "draft")
+        self.assertFalse(order.order_line.mayan_cost_snapshot_set)
+        self.assertEqual(order.order_line.mayan_average_cost, 3)
+        with self.assertRaises(ValidationError), self.cr.savepoint():
+            order.button_confirm()
+        order.order_line.mayan_cost_justification = "Nueva revisión del costo"
+        order.button_confirm()
+        self.assertEqual(order.order_line.mayan_cost_snapshot, 3)
 
     def test_noop_edit_preserves_reason_but_copy_cannot_reuse_audit(self):
         order = self._order({"price_unit": 7, "mayan_cost_justification": "Cotización vigente"})

@@ -172,6 +172,8 @@ class PurchaseOrderLine(models.Model):
     @api.onchange("product_id", "product_uom", "price_unit", "discount", "taxes_id")
     def _onchange_mayan_cost_inputs(self):
         for line in self:
+            if line._origin and (line.product_id != line._origin.product_id or line.product_uom != line._origin.product_uom):
+                line.mayan_cost_snapshot_set = False
             if line._origin and line.mayan_cost_justification:
                 line.mayan_cost_justification = False
 

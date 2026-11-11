@@ -40,6 +40,8 @@ class PurchaseOrder(models.Model):
             != (order[key].id if order._fields[key].type == "many2one" else order[key])
             for key in ("company_id", "currency_id", "date_order")
         ))
+        reopened = self.filtered(lambda order: vals.get("state") == "draft" and order.state != "draft")
+        changed |= reopened
         batch = self.with_context(_mayan_order_batch=ORDER_BATCH)
         if changed:
             changed.order_line._mayan_clear_snapshot()
@@ -47,9 +49,19 @@ class PurchaseOrder(models.Model):
         result = super(PurchaseOrder, batch).write(vals)
         # Cancellation is always available, including an incomplete generated quotation.
         active = self.filtered(lambda order: order.state != "cancel")
-        active._mayan_validate_cost_control()
+        (active - reopened)._mayan_validate_cost_control()
+        reopened._mayan_validate_cost_control(allow_pending=True)
         active.filtered(lambda order: order.state in ("purchase", "done")).order_line._mayan_set_snapshot()
         return result
+
+    @api.onchange("company_id", "currency_id", "date_order")
+    def _onchange_mayan_reference(self):
+        for order in self:
+            if order._origin and any(order[key] != order._origin[key]
+                                     for key in ("company_id", "currency_id", "date_order")):
+                for line in order.order_line:
+                    line.mayan_cost_snapshot_set = False
+                    line.mayan_cost_justification = False
 
     def button_confirm(self):
         self._mayan_lock_cost_control()

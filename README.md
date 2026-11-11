@@ -72,6 +72,8 @@ si continúa fuera del rango, se debe crear con una nueva justificación.
 
 La cancelación permanece disponible para órdenes pendientes. No se modifican
 recepciones, asientos, métodos de valoración ni facturas de forma automática.
+Al regresar una orden a borrador se descarta la referencia congelada y se exige
+una nueva justificación si corresponde; los motivos anteriores siguen en el historial.
 
 ## Solicitudes obligatorias
 
