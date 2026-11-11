@@ -15,11 +15,14 @@ concurrency:
 
 jobs:
   odoo:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     container:
       image: odoo:18.0
       options: --user root
+      volumes:
+        - /opt/google/chrome:/opt/runner-chrome:ro
+        - /usr/lib/x86_64-linux-gnu:/opt/runner-libs:ro
     services:
       db:
         image: postgres:16
@@ -72,13 +75,16 @@ jobs:
           import re
           assert re.search(r'0 failed, 0 error\(s\) of [1-9]\d* tests', Path('/tmp/cost-tests.log').read_text())
           PY
-      - name: Install Chrome for the form test
+      - name: Use the runner's preinstalled Chrome
         run: |
-          sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources
-          apt-get -o Acquire::https::Timeout=15 -o Acquire::Retries=1 update -qq
-          apt-get install -y -qq curl
-          curl --connect-timeout 20 -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb
-          apt-get install -y -qq /tmp/chrome.deb
+          test -x /opt/runner-chrome/chrome
+          cat > /usr/local/bin/google-chrome <<'SH'
+          #!/bin/sh
+          export LD_LIBRARY_PATH=/opt/runner-libs
+          exec /opt/runner-libs/ld-linux-x86-64.so.2 --library-path /opt/runner-libs /opt/runner-chrome/chrome "$@"
+          SH
+          chmod +x /usr/local/bin/google-chrome
+          google-chrome --version
       - name: Run browser test
         shell: bash
         run: |
