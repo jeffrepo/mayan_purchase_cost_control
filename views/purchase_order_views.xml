@@ -1,0 +1,47 @@
+<odoo>
+    <record id="purchase_order_form_cost_control" model="ir.ui.view">
+        <field name="name">purchase.order.form.mayan.cost.control</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='order_line']" position="attributes">
+                <attribute name="widget">mayan_cost_order_lines</attribute>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list" position="attributes">
+                <attribute name="decoration-danger">mayan_requires_justification and not mayan_cost_justification</attribute>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list/field[@name='price_unit']" position="after">
+                <field name="mayan_requires_justification" column_invisible="True"/>
+                <field name="mayan_average_cost" optional="show"/>
+                <field name="mayan_net_unit_price" optional="hide"/>
+                <field name="mayan_cost_difference" optional="show"/>
+                <field name="mayan_cost_variation" invisible="mayan_cost_status == 'no_cost'" optional="show"/>
+                <field name="mayan_cost_status" optional="show"/>
+                <field name="mayan_cost_justification" required="mayan_requires_justification"
+                       placeholder="Motivo de la variación"/>
+                <field name="mayan_justified_by" optional="hide"/>
+                <field name="mayan_justified_at" optional="hide"/>
+                <field name="mayan_request_line_id" optional="hide"
+                       readonly="state in ('purchase', 'done', 'cancel')"
+                       domain="[('request_id', '=', parent.purchase_request_id), ('product_id', '=', product_id), ('request_type', '=', 'purchase'), ('vendor_id', '=', parent.partner_id)]"
+                       options="{'no_create': True}"/>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/form/group" position="inside">
+                <group string="Control de costo">
+                    <field name="mayan_requires_justification" invisible="1"/>
+                    <field name="mayan_average_cost"/>
+                    <field name="mayan_net_unit_price"/>
+                    <field name="mayan_cost_difference"/>
+                    <field name="mayan_cost_variation" invisible="mayan_cost_status == 'no_cost'"/>
+                    <field name="mayan_cost_status"/>
+                    <field name="mayan_cost_justification" required="mayan_requires_justification"/>
+                    <field name="mayan_justified_by"/>
+                    <field name="mayan_justified_at"/>
+                    <field name="mayan_request_line_id" readonly="state in ('purchase', 'done', 'cancel')"
+                           domain="[('request_id', '=', parent.purchase_request_id), ('product_id', '=', product_id), ('request_type', '=', 'purchase'), ('vendor_id', '=', parent.partner_id)]"
+                           options="{'no_create': True}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
