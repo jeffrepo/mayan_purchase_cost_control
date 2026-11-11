@@ -1,0 +1,126 @@
+name: Odoo 18 integration and browser tests
+
+on:
+  push:
+    branches: [master, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: odoo-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  odoo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    container:
+      image: odoo:18.0
+      options: --user root
+      volumes:
+        - /opt/google/chrome:/opt/runner-chrome:ro
+        - /usr/lib/x86_64-linux-gnu:/opt/runner-libs:ro
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+        options: >-
+          --health-cmd "pg_isready -U odoo -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: addons/mayan_purchase_cost_control
+      - uses: actions/checkout@v4
+        with:
+          repository: jeffrepo/purchase_request_app
+          ref: 124bf1b90ac3b698933cba064abd08991fa7ba97
+          path: addons/purchase_request_app
+      - name: Use the runner's preinstalled Chrome
+        run: |
+          test -x /opt/runner-chrome/chrome
+          cat > /usr/local/bin/google-chrome <<'SH'
+          #!/bin/sh
+          export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/opt/runner-libs
+          exec /opt/runner-chrome/chrome "$@"
+          SH
+          chmod +x /usr/local/bin/google-chrome
+          google-chrome --version
+          timeout 60 google-chrome --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --dump-dom about:blank > /tmp/chrome-check.html 2>/tmp/chrome-startup.log || { cat /tmp/chrome-startup.log; exit 1; }
+          grep -q '<html' /tmp/chrome-check.html
+      - uses: actions/checkout@v4
+        with:
+          repository: websocket-client/websocket-client
+          ref: 3dc494588c4bc6ca1cbb745e9d110108f6bf04f0
+          path: qa/websocket-client
+      - name: Run dependency regression tests
+        shell: bash
+        run: |
+          set -o pipefail
+          odoo --db_host=db --db_port=5432 --db_user=odoo --db_password=odoo \
+            --database=purchase_request_regression \
+            --addons-path="/usr/lib/python3/dist-packages/odoo/addons,$GITHUB_WORKSPACE/addons" \
+            --data-dir=/tmp/mayan-odoo-data --init=purchase_request_app --without-demo=all \
+            --test-enable --test-tags=/purchase_request_app --stop-after-init --no-http \
+            2>&1 | tee /tmp/request-tests.log
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          assert re.search(r'0 failed, 0 error\(s\) of [1-9]\d* tests', Path('/tmp/request-tests.log').read_text())
+          PY
+      - name: Run cost control server tests
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          odoo --db_host=db --db_port=5432 --db_user=odoo --db_password=odoo \
+            --database=mayan_cost_test \
+            --addons-path="/usr/lib/python3/dist-packages/odoo/addons,$GITHUB_WORKSPACE/addons" \
+            --data-dir=/tmp/mayan-odoo-data --init=mayan_purchase_cost_control --without-demo=all \
+            --test-enable --test-tags=/mayan_purchase_cost_control:TestPurchaseCostControl --stop-after-init --no-http \
+            2>&1 | tee /tmp/cost-tests.log
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          assert re.search(r'0 failed, 0 error\(s\) of [1-9]\d* tests', Path('/tmp/cost-tests.log').read_text())
+          PY
+      - name: Run browser test
+        shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}/qa/websocket-client
+        run: |
+          set -o pipefail
+          odoo --db_host=db --db_port=5432 --db_user=odoo --db_password=odoo \
+            --database=mayan_cost_test \
+            --addons-path="/usr/lib/python3/dist-packages/odoo/addons,$GITHUB_WORKSPACE/addons" \
+            --data-dir=/tmp/mayan-odoo-data --update=mayan_purchase_cost_control --without-demo=all \
+            --test-enable --test-tags=/mayan_purchase_cost_control:TestCostControlUI --stop-after-init \
+            --http-interface=127.0.0.1 --screenshots=/tmp/mayan-screenshots \
+            2>&1 | tee /tmp/browser-tests.log
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          log = Path('/tmp/browser-tests.log').read_text()
+          assert re.search(r'0 failed, 0 error\(s\) of [1-9]\d* tests', log)
+          assert 'tour succeeded' in log
+          PY
+      - name: Preserve test logs and browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: odoo-test-results
+          path: |
+            /tmp/request-tests.log
+            /tmp/cost-tests.log
+            /tmp/browser-tests.log
+            /tmp/chrome-startup.log
+            /tmp/mayan-screenshots
+            /tmp/mayan-screencasts

@@ -1,0 +1,12 @@
+<odoo>
+    <record id="product_category_form_cost_control" model="ir.ui.view">
+        <field name="name">product.category.form.mayan.cost.control</field>
+        <field name="model">product.category</field>
+        <field name="inherit_id" ref="product.product_category_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='parent_id']" position="after">
+                <field name="mayan_require_purchase_request"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
