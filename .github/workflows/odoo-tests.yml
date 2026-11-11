@@ -44,6 +44,23 @@ jobs:
           repository: jeffrepo/purchase_request_app
           ref: 124bf1b90ac3b698933cba064abd08991fa7ba97
           path: addons/purchase_request_app
+      - name: Use the runner's preinstalled Chrome
+        run: |
+          test -x /opt/runner-chrome/chrome
+          cat > /usr/local/bin/google-chrome <<'SH'
+          #!/bin/sh
+          export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/opt/runner-libs
+          exec /opt/runner-chrome/chrome "$@"
+          SH
+          chmod +x /usr/local/bin/google-chrome
+          google-chrome --version
+          timeout 60 google-chrome --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --dump-dom about:blank > /tmp/chrome-check.html 2>/tmp/chrome-startup.log || { cat /tmp/chrome-startup.log; exit 1; }
+          grep -q '<html' /tmp/chrome-check.html
+      - uses: actions/checkout@v4
+        with:
+          repository: websocket-client/websocket-client
+          ref: 3dc494588c4bc6ca1cbb745e9d110108f6bf04f0
+          path: qa/websocket-client
       - name: Run dependency regression tests
         shell: bash
         run: |
@@ -75,21 +92,6 @@ jobs:
           import re
           assert re.search(r'0 failed, 0 error\(s\) of [1-9]\d* tests', Path('/tmp/cost-tests.log').read_text())
           PY
-      - name: Use the runner's preinstalled Chrome
-        run: |
-          test -x /opt/runner-chrome/chrome
-          cat > /usr/local/bin/google-chrome <<'SH'
-          #!/bin/sh
-          export LD_LIBRARY_PATH=/opt/runner-libs
-          exec /opt/runner-libs/ld-linux-x86-64.so.2 --library-path /opt/runner-libs /opt/runner-chrome/chrome "$@"
-          SH
-          chmod +x /usr/local/bin/google-chrome
-          google-chrome --version
-      - uses: actions/checkout@v4
-        with:
-          repository: websocket-client/websocket-client
-          ref: 3dc494588c4bc6ca1cbb745e9d110108f6bf04f0
-          path: qa/websocket-client
       - name: Run browser test
         shell: bash
         env:
@@ -119,5 +121,6 @@ jobs:
             /tmp/request-tests.log
             /tmp/cost-tests.log
             /tmp/browser-tests.log
+            /tmp/chrome-startup.log
             /tmp/mayan-screenshots
             /tmp/mayan-screencasts
