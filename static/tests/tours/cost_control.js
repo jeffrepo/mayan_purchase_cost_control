@@ -24,5 +24,8 @@ registry.category("web_tour.tours").add("mayan_cost_control_justification", {
                 }
             },
         },
+        { trigger: ".o_data_row:nth-child(2) .o_list_record_remove", run: "click" },
+        { trigger: ".o_form_button_save", run: "click" },
+        { trigger: "body:has(.o_form_status_indicator_buttons.invisible)", run() {} },
     ],
 });

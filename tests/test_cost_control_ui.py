@@ -19,3 +19,7 @@ class TestCostControlUI(HttpCase):
         self.start_tour(
             "/odoo/purchase/%s" % order.id, "mayan_cost_control_justification", login="admin",
         )
+        order.invalidate_recordset()
+        self.assertEqual(len(order.order_line), 1)
+        self.assertEqual(order.order_line.price_unit, 13)
+        self.assertEqual(order.order_line.mayan_cost_justification, "Cotización urgente del proveedor")
