@@ -159,7 +159,11 @@ class TestPurchaseCostControl(AccountTestInvoicingCommon):
         line.write({"price_unit": 8, "mayan_cost_justification": "Nuevo precio cotizado; compra urgente"})
         self.assertEqual(line.mayan_cost_snapshot, 5.5)
         self.assertEqual(line.mayan_cost_justification, "Nuevo precio cotizado; compra urgente")
-        line.product_qty = 3
+        # Odoo can reapply the supplier tariff when quantity changes. That is
+        # a real price change and must not silently reuse the previous reason.
+        with self.assertRaises(ValidationError), self.cr.savepoint():
+            line.product_qty = 3
+        line.write({"product_qty": 3, "price_unit": line.price_unit, "discount": line.discount})
         self.assertEqual(line.mayan_cost_justification, "Nuevo precio cotizado; compra urgente")
 
     def test_server_guards_direct_create_write_state_and_context(self):

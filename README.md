@@ -67,7 +67,8 @@ Cada justificación registra usuario, fecha, producto, motivo e importes en el
 historial de la orden. Cambiar producto, unidad, precio, descuento o impuestos
 requiere justificar de nuevo si el resultado sigue fuera del rango. Cambiar
 compañía, moneda o fecha reinicia la referencia y los motivos. Cambiar únicamente
-la cantidad conserva la justificación. Una copia no reutiliza motivos ni auditoría:
+la cantidad conserva la justificación si el precio permanece igual. Si Odoo reaplica
+una tarifa por la cantidad y cambia el precio, se exige revisar el motivo. Una copia no reutiliza motivos ni auditoría:
 si continúa fuera del rango, se debe crear con una nueva justificación.
 
 La cancelación permanece disponible para órdenes pendientes. No se modifican
