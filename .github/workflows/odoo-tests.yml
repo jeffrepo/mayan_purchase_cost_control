@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: odoo-${{ github.ref }}
+  group: odoo-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -41,12 +41,6 @@ jobs:
           repository: jeffrepo/purchase_request_app
           ref: 124bf1b90ac3b698933cba064abd08991fa7ba97
           path: addons/purchase_request_app
-      - name: Install Chrome for the form test
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq curl
-          curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb
-          apt-get install -y -qq /tmp/chrome.deb
       - name: Run dependency regression tests
         shell: bash
         run: |
@@ -62,7 +56,8 @@ jobs:
           import re
           assert re.search(r'0 failed, 0 error\(s\) of [1-9]\d* tests', Path('/tmp/request-tests.log').read_text())
           PY
-      - name: Run cost control and browser tests
+      - name: Run cost control server tests
+        if: always()
         shell: bash
         run: |
           set -o pipefail
@@ -70,13 +65,37 @@ jobs:
             --database=mayan_cost_test \
             --addons-path="/usr/lib/python3/dist-packages/odoo/addons,$GITHUB_WORKSPACE/addons" \
             --data-dir=/tmp/mayan-odoo-data --init=mayan_purchase_cost_control --without-demo=all \
-            --test-enable --test-tags=/mayan_purchase_cost_control --stop-after-init \
-            --http-interface=127.0.0.1 --screencasts=/tmp/mayan-screencasts --screenshots=/tmp/mayan-screenshots \
+            --test-enable --test-tags=/mayan_purchase_cost_control:TestPurchaseCostControl --stop-after-init --no-http \
             2>&1 | tee /tmp/cost-tests.log
           python3 - <<'PY'
           from pathlib import Path
           import re
           assert re.search(r'0 failed, 0 error\(s\) of [1-9]\d* tests', Path('/tmp/cost-tests.log').read_text())
+          PY
+      - name: Install Chrome for the form test
+        run: |
+          sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources
+          apt-get -o Acquire::https::Timeout=15 -o Acquire::Retries=1 update -qq
+          apt-get install -y -qq curl
+          curl --connect-timeout 20 -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb
+          apt-get install -y -qq /tmp/chrome.deb
+      - name: Run browser test
+        shell: bash
+        run: |
+          set -o pipefail
+          odoo --db_host=db --db_port=5432 --db_user=odoo --db_password=odoo \
+            --database=mayan_cost_test \
+            --addons-path="/usr/lib/python3/dist-packages/odoo/addons,$GITHUB_WORKSPACE/addons" \
+            --data-dir=/tmp/mayan-odoo-data --update=mayan_purchase_cost_control --without-demo=all \
+            --test-enable --test-tags=/mayan_purchase_cost_control:TestCostControlUI --stop-after-init \
+            --http-interface=127.0.0.1 --screenshots=/tmp/mayan-screenshots \
+            2>&1 | tee /tmp/browser-tests.log
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          log = Path('/tmp/browser-tests.log').read_text()
+          assert re.search(r'0 failed, 0 error\(s\) of [1-9]\d* tests', log)
+          assert 'Tour mayan_cost_control_justification succeeded' in log
           PY
       - name: Preserve test logs and browser evidence
         if: always()
@@ -86,5 +105,6 @@ jobs:
           path: |
             /tmp/request-tests.log
             /tmp/cost-tests.log
+            /tmp/browser-tests.log
             /tmp/mayan-screenshots
             /tmp/mayan-screencasts
