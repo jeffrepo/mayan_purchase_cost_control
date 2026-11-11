@@ -85,8 +85,15 @@ jobs:
           SH
           chmod +x /usr/local/bin/google-chrome
           google-chrome --version
+      - uses: actions/checkout@v4
+        with:
+          repository: websocket-client/websocket-client
+          ref: 3dc494588c4bc6ca1cbb745e9d110108f6bf04f0
+          path: qa/websocket-client
       - name: Run browser test
         shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}/qa/websocket-client
         run: |
           set -o pipefail
           odoo --db_host=db --db_port=5432 --db_user=odoo --db_password=odoo \
