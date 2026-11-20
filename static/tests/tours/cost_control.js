@@ -4,7 +4,7 @@ import { registry } from "@web/core/registry";
 registry.category("web_tour.tours").add("mayan_cost_control_justification", {
     steps: () => [
         { trigger: ".o_data_row td[name='price_unit']", run: "click" },
-        { trigger: ".o_field_widget[name='price_unit'] input", run: "edit 13" },
+        { trigger: ".o_field_widget[name='price_unit'] input", run: "edit 11.1" },
         { trigger: ".o_field_x2many_list_row_add a:first", run: "click" },
         {
             trigger: ".o_notification_content:contains('justificación')",

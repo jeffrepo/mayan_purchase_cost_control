@@ -5,6 +5,8 @@ from odoo.tests import HttpCase, tagged
 @tagged("post_install", "-at_install")
 class TestCostControlUI(HttpCase):
     def test_no_new_line_until_justification_is_completed(self):
+        # 11% must be blocked with this setting although it is below the old 20%.
+        self.env.company.mayan_purchase_cost_tolerance = 10.5
         vendor = self.env["res.partner"].create({"name": "Proveedor prueba UI"})
         product = self.env["product.product"].create({"name": "Producto prueba UI", "standard_price": 10})
         order = self.env["purchase.order"].create({
@@ -21,5 +23,5 @@ class TestCostControlUI(HttpCase):
         )
         order.invalidate_recordset()
         self.assertEqual(len(order.order_line), 1)
-        self.assertEqual(order.order_line.price_unit, 13)
+        self.assertEqual(order.order_line.price_unit, 11.1)
         self.assertEqual(order.order_line.mayan_cost_justification, "Cotización urgente del proveedor")
