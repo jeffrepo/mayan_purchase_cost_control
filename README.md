@@ -16,6 +16,15 @@ el addon `mayan_purchase_cost_control`.
    sin marcar no elimina la obligación heredada.
 4. Los compradores que consultan solicitudes deben tener el grupo existente
    **Solicitud de compra**, además de sus permisos de Compras e Inventario.
+5. En **Compras > Configuración > Ajustes > Pedidos**, configurar
+   **Variación de costo permitida (%)** para la compañía activa. Es un campo
+   decimal: ingresar `15,5` permite variaciones desde -15,5% hasta +15,5%.
+   El valor inicial es **20%**; se aceptan valores mayores o iguales a cero.
+   Con **0%**, cualquier variación exige justificación.
+
+Para actualizar desde la primera versión, reiniciar Odoo y actualizar
+`mayan_purchase_cost_control` a **18.0.1.1.0**. Las compañías existentes empiezan
+con 20% para conservar el comportamiento anterior hasta cambiar la configuración.
 
 ```bash
 odoo-bin -d NOMBRE_BD -u purchase_request_app -i mayan_purchase_cost_control --stop-after-init
@@ -40,8 +49,9 @@ variación (%) = diferencia / costo de referencia × 100
   el módulo no cambia el método de valoración ni inventa un promedio distinto.
 - La conversión de moneda usa la fecha de la orden. El costo por unidad de
   inventario se convierte a la unidad de compra (por ejemplo, unidad a docena).
-- **Exactamente -20% y +20% están permitidos** sin justificación. La comparación
-  utiliza seis decimales porcentuales para evitar errores de coma flotante.
+- Los límites negativo y positivo del **porcentaje configurado en la compañía
+  de la orden** están incluidos. La comparación utiliza seis decimales
+  porcentuales para evitar errores de coma flotante.
 - Fuera del rango se exige una justificación con texto; espacios o saltos de línea
   solos no son válidos. No se agrega un flujo de autorización gerencial.
 - Con costo cero o negativo se muestra **Sin costo de referencia**, se oculta el
@@ -51,6 +61,11 @@ variación (%) = diferencia / costo de referencia × 100
 El formulario exige justificar antes de agregar otra línea. El servidor valida
 también creaciones, ediciones, importaciones, llamadas API, catálogo y confirmación,
 incluida la aprobación estándar de Odoo si la compañía ya la utiliza.
+Todas estas reglas usan el mismo porcentaje configurado; no queda un límite
+operativo fijo de 20%. Cambiar el ajuste actualiza el estado de las líneas al
+recalcular o recargar la orden y se comprueba nuevamente al guardar o confirmar.
+También se usa el ajuste vigente al consultar órdenes confirmadas, conservando
+su costo de referencia y el historial de justificaciones.
 
 La generación automática desde una solicitud puede dejar un **borrador** pendiente
 de justificación cuando todavía no existe costo. Esto permite completar el motivo
@@ -106,7 +121,9 @@ odoo-bin -d mayan_cost_test -i mayan_purchase_cost_control --without-demo=all \
 Cobertura: límites positivos/negativos, impuestos y descuentos, unidades y monedas,
 compañías, costo inexistente, auditoría, manipulación por API/contexto, categorías
 descendientes, solicitudes incorrectas, costos históricos después de recibir,
-compradores sin rol gerencial y bloqueo del ingreso de líneas en el navegador.
+compradores sin rol gerencial, configuración decimal por compañía, cambios del
+margen, valor cero y bloqueo del ingreso de líneas en el navegador con un margen
+distinto del valor inicial.
 
 Validar en una copia de la base Mayan antes de instalar en producción, con sus
 categorías AVCO, monedas, impuestos y permisos reales.

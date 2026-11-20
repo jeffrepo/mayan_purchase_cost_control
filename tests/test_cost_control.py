@@ -77,6 +77,77 @@ class TestPurchaseCostControl(AccountTestInvoicingCommon):
             with self.subTest(price=price), self.assertRaisesRegex(ValidationError, "COST-001"), self.cr.savepoint():
                 self._order({"price_unit": price})
 
+    def test_purchase_settings_persist_decimal_tolerance(self):
+        self.assertEqual(self.company.mayan_purchase_cost_tolerance, 20)
+        settings = self.env["res.config.settings"].sudo().create({
+            "company_id": self.company.id, "mayan_purchase_cost_tolerance": 12.5,
+        })
+        settings.execute()
+        reloaded = self.env["res.config.settings"].sudo().create({"company_id": self.company.id})
+        self.assertEqual(reloaded.mayan_purchase_cost_tolerance, 12.5)
+        self.assertEqual(self.company.mayan_purchase_cost_tolerance, 12.5)
+
+    def test_configured_decimal_boundaries_replace_twenty_percent(self):
+        self.product.standard_price = 100
+        for tolerance in (12.5, 35.5):
+            self.company.mayan_purchase_cost_tolerance = tolerance
+            for price in (100 - tolerance, 100 + tolerance):
+                order = self._order({"price_unit": price})
+                self.assertFalse(order.order_line.mayan_requires_justification)
+                order.button_confirm()
+                self.assertEqual(order.state, "purchase")
+            for price in (100 - tolerance - 0.01, 100 + tolerance + 0.01):
+                with self.assertRaises(ValidationError), self.cr.savepoint():
+                    self._order({"price_unit": price})
+
+    def test_changed_tolerance_rechecks_existing_order_and_api(self):
+        self.product.standard_price = 100
+        self.company.mayan_purchase_cost_tolerance = 30
+        order = self._order({"price_unit": 125})
+        self.assertFalse(order.order_line.mayan_requires_justification)
+        self.company.mayan_purchase_cost_tolerance = 15
+        self.assertTrue(order.order_line.mayan_requires_justification)
+        for operation in (
+            order.button_confirm, order.action_add_from_catalog,
+            lambda: order.write({"order_line": [Command.create(self._line(price_unit=100))]}),
+            lambda: order.order_line.write({"price_unit": 126}),
+            lambda: self.env["purchase.order.line"].create(self._line(order_id=order.id, price_unit=100)),
+        ):
+            with self.assertRaises(ValidationError), self.cr.savepoint():
+                operation()
+        order.order_line.mayan_cost_justification = "Precio revisado con el nuevo margen"
+        order.button_confirm()
+        self.company.mayan_purchase_cost_tolerance = 30
+        self.assertFalse(order.order_line.mayan_requires_justification)
+        self.assertEqual(order.order_line.mayan_cost_snapshot, 100)
+
+    def test_zero_tolerance_and_negative_configuration(self):
+        self.company.mayan_purchase_cost_tolerance = 0
+        self.product.standard_price = 100
+        self.assertFalse(self._order({"price_unit": 100}).order_line.mayan_requires_justification)
+        for price in (99.99, 100.01):
+            with self.assertRaises(ValidationError), self.cr.savepoint():
+                self._order({"price_unit": price})
+        with self.assertRaises(ValidationError), self.cr.savepoint():
+            self.env["res.config.settings"].sudo().create({
+                "company_id": self.company.id, "mayan_purchase_cost_tolerance": -1,
+            })
+
+    def test_tolerance_uses_order_company_not_active_company(self):
+        other = self.env["res.company"].create({
+            "name": "Mayan tolerancia QA", "currency_id": self.company.currency_id.id,
+            "mayan_purchase_cost_tolerance": 30,
+        })
+        self.company.mayan_purchase_cost_tolerance = 10
+        self.product.standard_price = 100
+        self.product.with_company(other).standard_price = 100
+        order = self._order({"price_unit": 125}, company_id=other.id)
+        self.assertFalse(order.order_line.mayan_requires_justification)
+        with self.assertRaises(ValidationError), self.cr.savepoint():
+            self._order({"price_unit": 125})
+        other.mayan_purchase_cost_tolerance = 15
+        self.assertTrue(order.order_line.mayan_requires_justification)
+
     def test_justified_high_and_low_prices_with_audit(self):
         for price in (4, 7):
             order = self._order({"price_unit": price, "mayan_cost_justification": "Cambio de presentación"})

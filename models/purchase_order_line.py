@@ -36,7 +36,7 @@ class PurchaseOrderLine(models.Model):
         string="Variación (%)", digits=(16, 4), compute="_compute_mayan_cost",
     )
     mayan_cost_status = fields.Selection([
-        ("within", "Dentro del rango"), ("outside", "Fuera de ±20%"),
+        ("within", "Dentro del rango"), ("outside", "Fuera del rango configurado"),
         ("no_cost", "Sin costo de referencia"),
     ], string="Control de costo", compute="_compute_mayan_cost")
     mayan_requires_justification = fields.Boolean(compute="_compute_mayan_cost")
@@ -80,13 +80,16 @@ class PurchaseOrderLine(models.Model):
         difference = net - cost
         variation = difference / cost * 100 if cost > 0 else 0.0
         status = "no_cost" if cost <= 0 else (
-            "outside" if float_compare(abs(variation), 20.0, precision_digits=6) > 0 else "within"
+            "outside" if float_compare(
+                abs(variation), company.mayan_purchase_cost_tolerance, precision_digits=6,
+            ) > 0 else "within"
         )
         return cost, net, difference, variation, status
 
     @api.depends(
         "product_id", "product_id.standard_price", "product_uom", "price_unit", "discount", "taxes_id",
         "display_type", "is_downpayment", "order_id.currency_id", "order_id.company_id", "order_id.date_order",
+        "order_id.company_id.mayan_purchase_cost_tolerance",
         "mayan_cost_snapshot", "mayan_cost_snapshot_set",
     )
     @api.depends_context("company")
@@ -109,7 +112,8 @@ class PurchaseOrderLine(models.Model):
         missing = self._mayan_missing_justification()
         if missing:
             raise ValidationError(_(
-                "Completa la justificación de los productos fuera de ±20%% o sin costo de referencia "
+                "Completa la justificación de los productos fuera del porcentaje configurado "
+                "en Compras o sin costo de referencia "
                 "antes de agregar productos, guardar cambios o confirmar: %s.",
                 ", ".join(missing.product_id.mapped("display_name")),
             ))
